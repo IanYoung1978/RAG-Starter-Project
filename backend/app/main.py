@@ -10,7 +10,7 @@ from fastapi import FastAPI
 
 from app import config
 
-app = FastAPI(title="Brewprint assistant")
+app = FastAPI(title="Brewing assistant")
 
 
 @app.get("/health")
@@ -19,6 +19,7 @@ def health() -> dict:
     return {
         "database": check_database(),
         "ollama": check_ollama(),
+        "chat_model": config.CHAT_MODEL
     }
 
 
