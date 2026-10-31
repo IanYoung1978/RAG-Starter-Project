@@ -25,13 +25,16 @@ def health() -> dict:
 
 
 @app.get("/ingredients")
-def list_ingredients(category: str | None = None, in_stock_only: bool = False) -> list[dict]:
+def list_ingredients(category: str | None = None, code: str | None = None, in_stock_only: bool = False) -> list[dict]:
     """List ingredients, optionally filtered by category (e.g. dry_hop) or stock."""
     sql = "SELECT code, category, name, description, pack_grams, notes, in_stock FROM ingredients WHERE true"
     params = {}
     if category:
         sql += " AND category = %(category)s"
         params["category"] = category
+    if code:
+        sql += " AND code = %(code)s"
+        params["code"] = code
     if in_stock_only:
         sql += " AND in_stock > 0"
     with connect() as conn:
