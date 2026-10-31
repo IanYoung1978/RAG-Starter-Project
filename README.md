@@ -62,7 +62,7 @@ Input is plain text and CSV only for v1.
 
 0. Setup: containers, health check ✓
 1. Database schema and import of the sheet ✓
-2. First model call
+2. First model call ✓
 3. Structured output: parse recipe shorthand into rows
 4. Embeddings
 5. Search by meaning, then hybrid search

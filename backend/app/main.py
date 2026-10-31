@@ -1,15 +1,19 @@
 """Brewprint assistant API.
 
-A health check, plus read-only views of the imported ingredients and
-recipes. Later phases add search, RAG and tools.
+A health check, read-only views of the imported ingredients and recipes,
+and /ask for questions to the model. Later phases add search, RAG and tools.
 """
+
+import time
 
 import httpx
 import psycopg
 from fastapi import FastAPI
+from pydantic import BaseModel
 
-from app import config
+from app import config, llm
 from app.db import connect
+from app.prompts import SYSTEM_PROMPT, format_inventory
 
 app = FastAPI(title="Brewing assistant")
 
@@ -39,6 +43,40 @@ def list_ingredients(category: str | None = None, code: str | None = None, in_st
         sql += " AND in_stock > 0"
     with connect() as conn:
         return conn.execute(sql + " ORDER BY category, code", params).fetchall()
+
+
+class AskRequest(BaseModel):
+    question: str
+    # Turn this off to see how the model answers with no knowledge of your data.
+    include_inventory: bool = True
+
+
+@app.post("/ask")
+def ask(request: AskRequest) -> dict:
+    """Ask the model a question about your ingredients and recipes.
+
+    Your whole sheet is small, so we simply paste all of it into the prompt
+    ("context stuffing"). Phase 6 replaces this with retrieval, which sends
+    only the relevant pieces.
+    """
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    context = ""
+    if request.include_inventory:
+        with connect() as conn:
+            ingredients = conn.execute("SELECT * FROM ingredients ORDER BY category, code").fetchall()
+            recipes = conn.execute("SELECT * FROM recipes ORDER BY name").fetchall()
+        context = format_inventory(ingredients, recipes)
+        messages.append({"role": "user", "content": context})
+    messages.append({"role": "user", "content": request.question})
+
+    started = time.perf_counter()
+    answer = llm.chat(messages)
+    return {
+        "answer": answer,
+        "model": config.CHAT_MODEL,
+        "context_characters": len(context),
+        "seconds": round(time.perf_counter() - started, 1),
+    }
 
 
 @app.get("/recipes")
