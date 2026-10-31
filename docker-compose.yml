@@ -1,0 +1,79 @@
+# Everything the app needs runs in these containers, so nothing is installed on the host.
+#   Start:            docker compose up -d
+#   Stop:             docker compose down
+#   Remove all data:  docker compose down -v   (deletes the database and downloaded models)
+#
+# Settings come from .env (copy .env.example). The defaults after ":-" are used if .env is missing.
+# Ports are bound to 127.0.0.1 so they're only reachable from this machine.
+
+services:
+  # Postgres with the pgvector extension, which adds a "vector" column type for embeddings.
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-brew}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brew}
+      POSTGRES_DB: ${POSTGRES_DB:-brew}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-brew} -d ${POSTGRES_DB:-brew}"]
+      interval: 5s
+      retries: 10
+
+  # Ollama serves open-weight models over a small HTTP API on port 11434.
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    # Give the container the NVIDIA GPU. Remove this block to run on CPU only (much slower).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      retries: 20
+
+  # One-off helper: downloads the models into the ollama volume, then exits.
+  # It is quick on later runs because the models are already there.
+  ollama-pull:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull ${CHAT_MODEL:-llama3.1:8b} && ollama pull ${EMBED_MODEL:-nomic-embed-text}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  # The FastAPI backend. The code folder is mounted in, so edits reload automatically.
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-brew}:${POSTGRES_PASSWORD:-brew}@db:5432/${POSTGRES_DB:-brew}
+      OLLAMA_URL: http://ollama:11434
+      CHAT_MODEL: ${CHAT_MODEL:-llama3.1:8b}
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+    volumes:
+      - ./backend:/app
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  ollama-models:
