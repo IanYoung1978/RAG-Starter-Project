@@ -26,12 +26,24 @@ docker compose logs -f ollama-pull   # watch the model download
 
 Then open http://localhost:8000/health. Every service should report `"ok": true`. The interactive API docs are at http://localhost:8000/docs.
 
+### Importing your data
+
+Put the Brewprint spreadsheet in `data/` (spreadsheets there are ignored by git), then run:
+
+```bash
+docker compose exec backend python -m app.importer /data/Brewprint_table_updated.xlsx
+```
+
+Run it again whenever your stock changes. It updates rows in place. Browse the result at http://localhost:8000/ingredients and http://localhost:8000/recipes. Both have filters you can try in `/docs`.
+
+(In Git Bash, put `MSYS_NO_PATHCONV=1 ` in front of the command so the `/data/...` path isn't rewritten into a Windows path. PowerShell doesn't need this.)
+
 To stop: `docker compose down`. To delete everything, including the database and models: `docker compose down -v`.
 
 ## Layout
 
 ```
-backend/            FastAPI app (app/main.py), Dockerfile, requirements.txt
+backend/            FastAPI app: main.py (API), schema.sql (tables), importer.py (sheet import)
 db/init.sql         turns on the pgvector extension
 data/               source data to import (sheet export, brew notes)
 frontend/           Vue app (Phase 8)
@@ -48,8 +60,8 @@ Input is plain text and CSV only for v1.
 
 ## Build phases
 
-0. Setup: containers, health check *(this phase)*
-1. Database schema and import of the sheet
+0. Setup: containers, health check ✓
+1. Database schema and import of the sheet ✓
 2. First model call
 3. Structured output: parse recipe shorthand into rows
 4. Embeddings

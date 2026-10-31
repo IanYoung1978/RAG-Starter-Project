@@ -219,3 +219,6 @@ __marimo__/
 
 # Node
 node_modules/
+
+# Personal spreadsheets stay local (the repo is public)
+data/*.xlsx

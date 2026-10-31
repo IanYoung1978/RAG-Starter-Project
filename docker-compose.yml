@@ -66,6 +66,7 @@ services:
       EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
     volumes:
       - ./backend:/app
+      - ./data:/data:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
